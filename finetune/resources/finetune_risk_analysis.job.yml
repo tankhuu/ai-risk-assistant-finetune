@@ -1,0 +1,80 @@
+# The main job for finetune.
+resources:
+  jobs:
+    finetune_risk_analysis_job:
+      name: finetune_risk_analysis
+
+      trigger:
+        # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
+        pause_status: PAUSED
+        periodic:
+          interval: 1
+          unit: DAYS
+
+      email_notifications:
+        on_failure:
+          - tank@backbase.com
+
+      tasks:
+        - task_key: pull_data_from_kaggle
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/kaggle.ipynb
+        - task_key: unify_finetune_dataset
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/unify_finetune_dataset.ipynb
+          depends_on:
+            - task_key: pull_data_from_kaggle
+        - task_key: generate_instruction_dataset
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/generate_instruction_dataset.ipynb
+          depends_on:
+            - task_key: pull_data_from_kaggle
+        - task_key: tokenizer
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/tokenizer.ipynb
+          depends_on:
+            - task_key: unify_finetune_dataset
+            - task_key: generate_instruction_dataset
+        - task_key: qlora_configuration
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/qlora_configuration.ipynb
+          depends_on:
+            - task_key: unify_finetune_dataset
+            - task_key: generate_instruction_dataset
+        - task_key: finetune_llama
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/finetune_llama.ipynb
+          depends_on:
+            - task_key: tokenizer
+            - task_key: qlora_configuration
+        - task_key: finetune_qwen
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/finetune_qwen.ipynb
+          depends_on:
+            - task_key: tokenizer
+            - task_key: qlora_configuration
+        - task_key: finetune_gemini
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: ../src/finetune_gemini.ipynb
+          depends_on:
+            - task_key: tokenizer
+            - task_key: qlora_configuration
+
+
+      job_clusters:
+        - job_cluster_key: job_cluster
+          new_cluster:
+            spark_version: 16.4.x-scala2.13
+            node_type_id: Standard_D4ds_v5
+            data_security_mode: SINGLE_USER
+            autoscale:
+                min_workers: 1
+                max_workers: 4
