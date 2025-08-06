@@ -1,4 +1,4 @@
-.databricks/
+finetune/.databricks/
 build/
 dist/
 __pycache__/
